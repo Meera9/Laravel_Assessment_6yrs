@@ -1,0 +1,23 @@
+{
+    "name": "mirali/user-discounts",
+    "description": "Laravel package for user-level discounts",
+    "type": "library",
+    "version": "12.0.0",
+    "autoload": {
+        "psr-4": {
+            "UserDiscounts\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.2",
+        "illuminate/support": "^12.0",
+        "illuminate/database": "^12.0"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "UserDiscounts\\UserDiscountsServiceProvider"
+            ]
+        }
+    }
+}
