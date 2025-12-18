@@ -10,28 +10,38 @@ return new class extends Migration {
     {
         Schema::create('discounts', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // required
-            $table->integer('percentage');
-            $table->boolean('active')->default(true);
-            $table->integer('usage_cap')->nullable();
-            $table->integer('stack_order')->nullable();
+            $table->string('name');
+            $table->decimal('percentage', 5, 2);
+            $table->boolean('is_active')->default(true);
+            $table->timestamp('expires_at')->nullable();
             $table->timestamps();
         });
+
 
         Schema::create('user_discounts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('discount_id')->constrained()->cascadeOnDelete();
-            $table->integer('usage_count')->default(0);
-            $table->integer('usage_limit')->nullable();
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('discount_id');
+
+            $table->unsignedInteger('usage_cap')->nullable();   // ❗ REQUIRED
+            $table->unsignedInteger('usage_count')->default(0); // ❗ REQUIRED
+
+            $table->boolean('revoked')->default(false);
             $table->timestamps();
         });
 
+
         Schema::create('discount_audits', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('discount_id')->constrained()->cascadeOnDelete();
-            $table->enum('action', ['assigned', 'revoked', 'applied']);
+
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('discount_id')->nullable();
+
+            $table->string('action'); // assigned | revoked | applied
+            $table->decimal('amount_before', 10, 2)->nullable();
+            $table->decimal('amount_after', 10, 2)->nullable();
+
+            $table->json('meta')->nullable(); // extra context
             $table->timestamps();
         });
     }

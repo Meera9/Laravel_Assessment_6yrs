@@ -3,6 +3,7 @@
 namespace UserDiscounts;
 
 use Illuminate\Support\ServiceProvider;
+use UserDiscounts\Providers\EventServiceProvider;
 use UserDiscounts\Services\DiscountService;
 
 class UserDiscountsServiceProvider extends ServiceProvider
@@ -18,6 +19,7 @@ class UserDiscountsServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../config/user_discounts.php' => config_path('user_discounts.php'),
         ], 'config');
+
     }
 
     public function register()
@@ -26,9 +28,12 @@ class UserDiscountsServiceProvider extends ServiceProvider
             return new DiscountService();
         });
 
+        $this->app->register(EventServiceProvider::class);
+
         $this->mergeConfigFrom(
             __DIR__ . '/../config/user_discounts.php',
             'user_discounts'
         );
+
     }
 }

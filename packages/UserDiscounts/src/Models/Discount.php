@@ -9,7 +9,12 @@ class Discount extends Model
 {
     use HasFactory;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'name',
+        'percentage',
+        'is_active',
+        'expires_at',
+    ];
 
     protected $casts = ['expires_at' => 'datetime'];
 }

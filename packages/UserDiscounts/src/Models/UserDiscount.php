@@ -6,5 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class UserDiscount extends Model
 {
-    protected $fillable = ['user_id', 'discount_id', 'usage_count'];
+    protected $table = 'user_discounts';
+
+    protected $fillable = [
+        'user_id',
+        'discount_id',
+        'usage_cap',
+        'usage_count',
+        'revoked',
+    ];
+
+    public function discount()
+    {
+        return $this->belongsTo(Discount::class);
+    }
 }

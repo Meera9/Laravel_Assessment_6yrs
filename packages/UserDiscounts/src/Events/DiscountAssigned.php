@@ -9,12 +9,8 @@ class DiscountAssigned
 {
     use Dispatchable, SerializesModels;
 
-    public int $userId;
-    public int $discountId;
-
-    public function __construct(int $userId, int $discountId)
-    {
-        $this->userId = $userId;
-        $this->discountId = $discountId;
-    }
+    public function __construct(
+        public int $userId,
+        public int $discountId
+    ) {}
 }

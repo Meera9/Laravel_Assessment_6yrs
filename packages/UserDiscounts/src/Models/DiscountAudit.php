@@ -6,6 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class DiscountAudit extends Model
 {
-    protected $fillable = ['action', 'discount_id', 'user_id', 'data'];
-    protected $casts = ['data' => 'array'];
+    protected $fillable = [
+        'user_id',
+        'discount_id',
+        'action',
+        'amount_before',
+        'amount_after',
+        'meta',
+    ];
+
+    protected $casts = [
+        'meta' => 'array',
+    ];
 }

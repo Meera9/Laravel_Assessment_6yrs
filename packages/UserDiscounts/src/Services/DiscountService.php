@@ -3,103 +3,73 @@
 namespace UserDiscounts\Services;
 
 use Illuminate\Support\Facades\DB;
-use UserDiscounts\Models\Discount;
-use UserDiscounts\Models\UserDiscount;
-use UserDiscounts\Models\DiscountAudit;
-use UserDiscounts\Events\DiscountAssigned;
-use UserDiscounts\Events\DiscountRevoked;
 use UserDiscounts\Events\DiscountApplied;
 
 class DiscountService
 {
-    public function assign($userId, Discount $discount)
-    : void
+    public function eligibleFor($user)
+    : bool
     {
-        UserDiscount::firstOrCreate([
-            'user_id'     => $userId,
-            'discount_id' => $discount->id,
-        ]);
-
-        DiscountAudit::create([
-            'user_id'     => $userId,
-            'discount_id' => $discount->id,
-            'action'      => 'assigned',
-        ]);
-
-        event(new DiscountAssigned($userId, $discount));
+        return $user->discounts()
+            ->where('revoked', false)
+            ->whereHas('discount', function ($q) {
+                $q->where('is_active', true)
+                    ->where(function ($x) {
+                        $x->whereNull('expires_at')
+                            ->orWhere('expires_at', '>', now());
+                    });
+            })
+            ->exists();
     }
 
-    public function revoke($userId, Discount $discount)
-    : void
-    {
-        UserDiscount::where('user_id', $userId)
-            ->where('discount_id', $discount->id)
-            ->delete();
-
-        DiscountAudit::create([
-            'user_id'     => $userId,
-            'discount_id' => $discount->id,
-            'action'      => 'revoked',
-        ]);
-
-        event(new DiscountRevoked($userId, $discount));
-    }
-
-    public function eligibleFor($userId)
-    : array
-    {
-        return UserDiscount::with('discount')
-            ->where('user_id', $userId)
-            ->get()
-            ->filter(fn($ud) => $ud->discount->active &&
-                (!$ud->discount->expires_at || $ud->discount->expires_at->isFuture()) &&
-                (!$ud->usage_limit || $ud->usage_count < $ud->usage_limit)
-            )
-            ->pluck('discount')
-            ->all();
-    }
-
-    public function apply($userId, float $price)
+    public function apply($user, float $amount)
     : float
     {
-        return DB::transaction(function () use ($userId, $price) {
-            $discounts = $this->eligibleFor($userId);
+        return DB::transaction(function () use ($user, $amount) {
 
-            if ( empty($discounts) ) {
-                return $price;
-            }
+            // 🔒 Lock rows + filter ONLY valid discounts
+            $discounts = $user->discounts()
+                ->lockForUpdate()
+                ->where('revoked', false)
+                ->whereHas('discount', function ($q) {
+                    $q->where('is_active', true)
+                        ->where(function ($x) {
+                            $x->whereNull('expires_at')
+                                ->orWhere('expires_at', '>', now());
+                        });
+                })
+                ->with('discount') // ✅ eager load
+                ->get();
 
-            // Deterministic stacking: sort by percentage descending
-            usort($discounts, fn($a, $b) => $b->percentage <=> $a->percentage);
+            $totalPercent = 0;
 
-            $cap = config('user_discounts.max_percentage_cap', 50);
-            $totalPercentage = min(array_sum(array_column($discounts, 'percentage')), $cap);
+            foreach ($discounts as $ud) {
 
-            $discountedPrice = $price * (1 - $totalPercentage / 100);
-
-            // Rounding
-            $round = config('user_discounts.rounding', 2);
-            $discountedPrice = round($discountedPrice, $round);
-
-            // Increment usage count safely
-            foreach ($discounts as $discount) {
-                $ud = UserDiscount::where('user_id', $userId)
-                    ->where('discount_id', $discount->id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if ( $ud && (!$ud->usage_limit || $ud->usage_count < $ud->usage_limit) ) {
-                    $ud->increment('usage_count');
-                    DiscountAudit::create([
-                        'user_id'     => $userId,
-                        'discount_id' => $discount->id,
-                        'action'      => 'applied',
-                    ]);
-                    event(new DiscountApplied($userId, $discount));
+                // Enforce per-user usage cap
+                if ( $ud->usage_cap !== null && $ud->usage_count >= $ud->usage_cap ) {
+                    continue;
                 }
+
+                $totalPercent += $ud->discount->percentage;
+
+                // Increment usage safely inside transaction
+                $ud->increment('usage_count');
             }
 
-            return $discountedPrice;
+            // ✅ Correct config keys (underscore, not dash)
+            $maxPercentage = config('user_discounts.max_percentage', 100);
+            $rounding = config('user_discounts.rounding', 2);
+
+            $totalPercent = min($totalPercent, $maxPercentage);
+
+            $final = round(
+                $amount * (1 - ($totalPercent / 100)),
+                $rounding
+            );
+
+            event(new DiscountApplied($user->id, $amount, $final));
+
+            return $final;
         });
     }
 }

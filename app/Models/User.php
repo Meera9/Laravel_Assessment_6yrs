@@ -6,6 +6,7 @@ use App\Models\Traits\UserDiscountsTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use UserDiscounts\Models\UserDiscount;
 
 class User extends Authenticatable
 {
@@ -22,5 +23,10 @@ class User extends Authenticatable
     public function primaryImage()
     {
         return $this->hasOne(Image::class)->where('is_primary', true);
+    }
+
+    public function discounts()
+    {
+        return $this->hasMany(UserDiscount::class);
     }
 }
